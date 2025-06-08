@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo check:*)",
+      "Bash(cargo:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "WebFetch(domain:docs.rs)",
+      "Bash(rg:*)"
+    ],
+    "deny": []
+  }
+}

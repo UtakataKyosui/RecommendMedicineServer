@@ -1,0 +1,28 @@
+🔧 usersテーブル拡張マイグレーション生成...
+skipped (exists): "migration/src/m20250608_060456_add_line_fields_to_users.rs"
+
+💊 薬管理scaffold生成...
+⏰ 服薬スケジュールscaffold生成...
+📝 服薬記録scaffold生成...
+🎮 追加コントローラー生成...
+⚙️ タスク・ワーカー生成...
+skipped (exists): "src/tasks/medication_reminder.rs"
+skipped (exists): "tests/tasks/medication_reminder.rs"
+
+skipped (exists): "tests/workers/notification.rs"
+skipped (exists): "src/workers/notification.rs"
+
+🗄️ マイグレーション実行...
+{"timestamp":"2025-06-08T06:04:58.239285Z","level":"WARN","fields":{"message":"migrate:"},"target":"loco_rs::boot"}
+{"timestamp":"2025-06-08T06:04:58.240365Z","level":"INFO","fields":{"message":"Applying all pending migrations"},"target":"sea_orm_migration::migrator"}
+{"timestamp":"2025-06-08T06:04:58.241923Z","level":"INFO","fields":{"message":"Applying migration 'm20250608_055203_add_line_fields_to_users'"},"target":"sea_orm_migration::migrator"}
+{"timestamp":"2025-06-08T06:04:58.241955Z","level":"INFO","fields":{"message":"Migration 'm20250608_055203_add_line_fields_to_users' has been applied"},"target":"sea_orm_migration::migrator"}
+{"timestamp":"2025-06-08T06:04:58.242819Z","level":"INFO","fields":{"message":"Applying migration 'm20250608_055342_medicines'"},"target":"sea_orm_migration::migrator"}
+✏️ 生成されたファイルをカスタマイズしてください:
+- src/models/users.rs (上記の拡張版コードを適用)
+- src/controllers/medicines.rs (scaffoldで生成されたコードをカスタマイズ)
+- src/controllers/medication_schedules.rs (scaffoldで生成されたコードをカスタマイズ)
+- src/controllers/medication_logs.rs (scaffoldで生成されたコードをカスタマイズ)
+- src/controllers/webhooks/line.rs
+🛣️ ルーティング設定を src/app.rs に追加してください
+✅ usersモデル拡張と関連scaffold生成完了!

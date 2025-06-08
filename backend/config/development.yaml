@@ -1,0 +1,84 @@
+# Loco configuration file for production
+
+# Application logging configuration
+logger:
+  enable: true
+  pretty_backtrace: false
+  level: info
+  format: json
+  # override_filter: info
+
+# Web server configuration
+server:
+  port: {{get_env(name="PORT", default="5150")}}
+  binding: 0.0.0.0
+  host: {{get_env(name="HOST", default="https://yourdomain.com")}}
+  middlewares:
+    fallback:
+      enable: false
+    static:
+      enable: true
+      must_exist: true
+      precompressed: true
+      folder:
+        uri: "/"
+        path: "frontend/dist"
+      fallback: "frontend/dist/index.html"
+    cors:
+      enable: true
+      allow_origin:
+        - {{get_env(name="FRONTEND_URL", default="https://yourdomain.com")}}
+      allow_methods:
+        - "GET"
+        - "POST"
+        - "PUT"
+        - "DELETE"
+        - "PATCH"
+        - "OPTIONS"
+      allow_headers:
+        - "Content-Type"
+        - "Authorization"
+        - "X-Requested-With"
+        - "X-CSRF-Token"
+      expose_headers:
+        - Content-Length
+        - X-Requested-With
+        - X-CSRF-Token
+      max_age: 86400
+
+# Worker Configuration
+workers:
+  mode: BackgroundQueue
+
+# Mailer Configuration
+mailer:
+  smtp:
+    enable: {{get_env(name="MAILER_ENABLE", default="false")}}
+    host: {{get_env(name="SMTP_HOST", default="localhost")}}
+    port: {{get_env(name="SMTP_PORT", default="587")}}
+    secure: {{get_env(name="SMTP_SECURE", default="true")}}
+
+# Database Configuration
+database:
+  uri: {{get_env(name="DATABASE_URL")}}
+  enable_logging: false
+  connect_timeout: {{get_env(name="DB_CONNECT_TIMEOUT", default="5000")}}
+  idle_timeout: {{get_env(name="DB_IDLE_TIMEOUT", default="5000")}}
+  min_connections: {{get_env(name="DB_MIN_CONNECTIONS", default="5")}}
+  max_connections: {{get_env(name="DB_MAX_CONNECTIONS", default="20")}}
+  auto_migrate: true
+  dangerously_truncate: false
+  dangerously_recreate: false
+
+# Authentication Configuration
+auth:
+  jwt:
+    secret: {{get_env(name="JWT_SECRET", default="asdfghjklqwertyuiopzxcvbnm1234567890")}}
+    expiration: 604800
+
+
+# Queue Configuration
+queue:
+  kind: Redis
+  uri: {{get_env(name="REDIS_URL", default="redis://127.0.0.1:6379")}}
+  dangerously_flush: false

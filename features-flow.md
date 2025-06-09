@@ -500,8 +500,8 @@ graph TD
     A[薬剤一覧表示] --> B[編集/削除アクション選択]
     B -->|編集| C[編集フォーム表示]
     B -->|削除| D[削除確認ダイアログ]
-    C --> E[API PUT /api/medicines/{id}]
-    D --> F[API DELETE /api/medicines/{id}]
+    C --> E[API PUT /api/medicines/:id]
+    D --> F[API DELETE /api/medicines/:id]
     E --> G[データベース更新]
     F --> H[データベースから削除]
     G --> I[一覧画面更新]
@@ -549,9 +549,9 @@ graph TD
     B -->|編集| C[編集フォーム]
     B -->|一時停止| D[active=false設定]
     B -->|削除| E[削除確認]
-    C --> F[API PUT /api/schedules/{id}]
-    D --> G[API PATCH /api/schedules/{id}]
-    E --> H[API DELETE /api/schedules/{id}]
+    C --> F[API PUT /api/schedules/:id]
+    D --> G[API PATCH /api/schedules/:id]
+    E --> H[API DELETE /api/schedules/:id]
     F --> I[データベース更新]
     G --> I
     H --> I
@@ -772,7 +772,7 @@ graph TD
     A[週次レポート生成] --> B[全ユーザーデータ取得]
     B --> C[個別レポート作成]
     C --> D[PDF/CSV生成]
-    D --> E[メール送信 (将来)]
+    D --> E[メール送信 -将来-]
     E --> F[生成完了ログ記録]
 ```
 

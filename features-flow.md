@@ -73,8 +73,8 @@ graph TD
     A[薬剤一覧表示] --> B[編集/無効化アクション選択]
     B -->|編集| C[編集フォーム表示]
     B -->|無効化| D[無効化確認ダイアログ]
-    C --> E[API PUT medicines/{id}]
-    D --> F[API PATCH medicines/{id}]
+    C --> E[API PUT medicines/ID]
+    D --> F[API PATCH medicines/ID]
     E --> G[データベース更新]
     F --> H[薬剤を非表示に]
     G --> I[一覧画面更新]
@@ -118,10 +118,10 @@ graph TD
     B -->|一時停止| D[active=false設定]
     B -->|再開| E[active=true設定]
     B -->|削除| F[削除確認]
-    C --> G[API PUT schedules/{id}]
-    D --> H[API PATCH schedules/{id}]
+    C --> G[API PUT schedules/ID]
+    D --> H[API PATCH schedules/ID]
     E --> H
-    F --> I[API DELETE schedules/{id}]
+    F --> I[API DELETE schedules/ID]
     G --> J[スケジュール更新]
     H --> J
     I --> J
@@ -134,23 +134,23 @@ graph TD
 ### 4.1 定期スケジュールチェック
 ```mermaid
 graph TD
-    A[MedicationReminderTask 実行] --> B[現在時刻取得]
-    B --> C[今の時刻にマッチするスケジュール検索]
+    A[MedicationReminderTask実行] --> B[現在時刻取得]
+    B --> C[マッチするスケジュール検索]
     C --> D{該当スケジュールあり?}
     D -->|なし| E[タスク終了]
-    D -->|あり| F[各スケジュールを処理]
-    F --> G[ユーザー・薬剤情報取得]
-    G --> H[今日の同じ時刻のログ存在チェック]
+    D -->|あり| F[スケジュール処理]
+    F --> G[ユーザー情報取得]
+    G --> H[ログ存在チェック]
     H --> I{ログ既存?}
-    I -->|あり| J[スキップ 重複防止]
-    I -->|なし| K[新規ログ作成 status=pending]
-    K --> L[通知ワーカーをキューに追加]
+    I -->|あり| J[重複回避でスキップ]
+    I -->|なし| K[新規ログ作成]
+    K --> L[通知ワーカー追加]
     L --> M[LINE通知送信]
-    J --> N[次のスケジュール処理]
+    J --> N[次処理]
     M --> N
 ```
 
-**実行タイミング**: 毎時間 (例: 8:00, 9:00, 10:00...)
+**実装タイミング**: 毎時間実行
 
 ### 4.2 LINE通知送信
 ```mermaid
@@ -198,7 +198,7 @@ graph TD
 ### 5.2 ユーザーからの服薬報告
 ```mermaid
 graph TD
-    A[LINE Bot メッセージ受信] --> B[Webhook /webhook/line 処理]
+    A[LINE Bot メッセージ受信] --> B[Webhook処理]
     B --> C[署名検証]
     C --> D{検証成功?}
     D -->|失敗| E[不正リクエスト拒否]
@@ -207,25 +207,25 @@ graph TD
     F -->|後で・あとで| H[スヌーズ設定]
     F -->|スキップ| I[スキップ処理]
     F -->|その他| J[ヘルプメッセージ]
-    G --> K[status=completed, taken_time=現在時刻]
+    G --> K[status=completed設定]
     H --> L[30分後に再通知予約]
-    I --> M[status=skipped]
-    K --> N[記録しました メッセージ]
-    L --> O[後でお知らせします メッセージ]
-    M --> P[スキップを記録しました メッセージ]
+    I --> M[status=skipped設定]
+    K --> N[記録完了メッセージ]
+    L --> O[スヌーズ確認メッセージ]
+    M --> P[スキップ確認メッセージ]
 ```
 
 ### 5.3 未服薬アラート
 ```mermaid
 graph TD
-    A[定期チェック 30分毎] --> B[30分以上前のpendingログ検索]
+    A[定期チェック実行] --> B[未服薬ログ検索]
     B --> C{未服薬ログあり?}
     C -->|なし| D[チェック終了]
-    C -->|あり| E[各ログのステータス更新]
-    E --> F[status=missed に変更]
-    F --> G[未服薬アラート通知作成]
-    G --> H[服薬を忘れていませんか 通知]
-    H --> I[まだ服薬可能な旨を伝達]
+    C -->|あり| E[ログステータス更新]
+    E --> F[status=missed設定]
+    F --> G[アラート通知作成]
+    G --> H[未服薬通知送信]
+    H --> I[次のログ処理]
 ```
 
 ---
@@ -273,7 +273,7 @@ graph TD
 ### 7.1 通知設定調整
 ```mermaid
 graph TD
-    A[設定画面アクセス] --> B[現在の通知設定表示]
+    A[設定画面アクセス] --> B[現在設定表示]
     B --> C[設定変更]
     C --> D{変更内容}
     D -->|通知ON/OFF| E[notification_enabled更新]
@@ -282,7 +282,7 @@ graph TD
     E --> H[設定保存]
     F --> H
     G --> H
-    H --> I[設定を更新しました 確認]
+    H --> I[更新完了通知]
 ```
 
 **カスタマイズ可能項目:**

@@ -1,0 +1,327 @@
+# .github/workflows/ci.yml
+name: Continuous Integration
+
+on:
+  push:
+    branches: ["*"]  # 全てのブランチでテスト実行
+  pull_request:
+    branches: ["*"]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # Backend Tests (Rust + Loco)
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: medication_reminder_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+
+    - name: Cache Rust dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          backend/target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('backend/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+
+    - name: Install sea-orm-cli
+      run: cargo install sea-orm-cli
+
+    - name: Check Rust formatting
+      working-directory: ./backend
+      run: cargo fmt --all -- --check
+
+    - name: Run Clippy
+      working-directory: ./backend
+      run: cargo clippy -- -D warnings
+
+    - name: Run database migrations
+      working-directory: ./backend
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/medication_reminder_test
+        REDIS_URL: redis://localhost:6379
+        JWT_SECRET: ${{ secrets.JWT_SECRET_TEST || 'test-jwt-secret-for-ci-only' }}
+        LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET_TEST || 'test-channel-secret' }}
+        LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN_TEST || 'test-access-token' }}
+      run: |
+        cargo loco db migrate
+
+    - name: Run backend tests
+      working-directory: ./backend
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/medication_reminder_test
+        REDIS_URL: redis://localhost:6379
+        JWT_SECRET: ${{ secrets.JWT_SECRET_TEST || 'test-jwt-secret-for-ci-only' }}
+        LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET_TEST || 'test-channel-secret' }}
+        LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN_TEST || 'test-access-token' }}
+        RUST_LOG: debug
+      run: |
+        cargo test --verbose
+
+    - name: Run integration tests
+      working-directory: ./backend
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/medication_reminder_test
+        REDIS_URL: redis://localhost:6379
+        JWT_SECRET: ${{ secrets.JWT_SECRET_TEST || 'test-jwt-secret-for-ci-only' }}
+        LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET_TEST || 'test-channel-secret' }}
+        LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN_TEST || 'test-access-token' }}
+      run: |
+        cargo test --test "*" --verbose
+
+  # Frontend Tests (React + TypeScript)
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install dependencies
+      working-directory: ./frontend
+      run: npm ci
+
+    - name: Check TypeScript types
+      working-directory: ./frontend
+      run: npx tsc --noEmit
+
+    - name: Run ESLint
+      working-directory: ./frontend
+      run: npm run lint
+
+    - name: Run unit tests
+      working-directory: ./frontend
+      run: npm test -- --coverage --watchAll=false
+
+    - name: Build frontend
+      working-directory: ./frontend
+      env:
+        VITE_API_BASE_URL: http://localhost:5150
+      run: npm run build
+
+  # E2E Tests (Optional - only on main/develop)
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: medication_reminder_e2e
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install frontend dependencies
+      working-directory: ./frontend
+      run: npm ci
+
+    - name: Install Playwright
+      working-directory: ./frontend
+      run: npx playwright install --with-deps
+
+    - name: Build frontend
+      working-directory: ./frontend
+      env:
+        VITE_API_BASE_URL: http://localhost:5150
+      run: npm run build
+
+    - name: Start backend server
+      working-directory: ./backend
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/medication_reminder_e2e
+        REDIS_URL: redis://localhost:6379
+        JWT_SECRET: ${{ secrets.JWT_SECRET_TEST || 'test-jwt-secret-for-e2e' }}
+        LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET_TEST || 'test-channel-secret' }}
+        LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN_TEST || 'test-access-token' }}
+        PORT: 5150
+      run: |
+        cargo loco db migrate
+        cargo loco start &
+        sleep 10  # Wait for server to start
+      timeout-minutes: 2
+
+    - name: Start frontend server
+      working-directory: ./frontend
+      run: |
+        npm run preview &
+        sleep 5  # Wait for frontend to start
+      env:
+        VITE_API_BASE_URL: http://localhost:5150
+
+    - name: Run E2E tests
+      working-directory: ./frontend
+      run: npx playwright test
+
+    - name: Upload E2E test artifacts
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: playwright-report
+        path: frontend/playwright-report/
+        retention-days: 7
+
+  # Security and Quality Checks
+  security-checks:
+    name: Security & Quality
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Run Rust security audit
+      working-directory: ./backend
+      run: |
+        cargo install cargo-audit
+        cargo audit
+
+    - name: Install frontend dependencies
+      working-directory: ./frontend
+      run: npm ci
+
+    - name: Run npm security audit
+      working-directory: ./frontend
+      run: npm audit --audit-level moderate
+
+    - name: Check for outdated dependencies
+      working-directory: ./frontend
+      run: npm outdated || true  # Don't fail on outdated deps, just warn
+
+  # Deployment readiness check (only for main branch)
+  deployment-check:
+    name: Deployment Readiness
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Build backend for production
+      working-directory: ./backend
+      env:
+        # プロダクションビルドには実際の環境変数は不要
+        DATABASE_URL: postgres://user:pass@localhost:5432/dummy
+        JWT_SECRET: dummy-secret-for-build-only
+      run: cargo build --release
+
+    - name: Install frontend dependencies
+      working-directory: ./frontend
+      run: npm ci
+
+    - name: Build frontend for production
+      working-directory: ./frontend
+      env:
+        VITE_API_BASE_URL: ${{ secrets.PRODUCTION_API_URL || 'https://api.example.com' }}
+      run: npm run build
+
+    - name: Check build artifacts
+      run: |
+        ls -la backend/target/release/
+        ls -la frontend/dist/
+
+# ワークフロー実行時間制限
+timeout-minutes: 30

@@ -6,7 +6,15 @@
       "Bash(find:*)",
       "Bash(grep:*)",
       "WebFetch(domain:docs.rs)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run dev:*)",
+      "Bash(rm:*)",
+      "Bash(pkill:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(npm install:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npx:*)"
     ],
     "deny": []
   }

@@ -1,68 +1,184 @@
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+@import "tailwindcss";
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
+@layer base {
   :root {
-    color: #213547;
-    background-color: #ffffff;
+    --background: 329 100% 98%;
+    --foreground: 340 15% 25%;
+    --card: 330 60% 99%;
+    --card-foreground: 340 15% 25%;
+    --popover: 330 60% 99%;
+    --popover-foreground: 340 15% 25%;
+    --primary: 329 78% 65%;
+    --primary-foreground: 340 15% 25%;
+    --secondary: 326 60% 94%;
+    --secondary-foreground: 340 15% 25%;
+    --muted: 326 60% 95%;
+    --muted-foreground: 340 10% 50%;
+    --accent: 320 65% 92%;
+    --accent-foreground: 340 15% 25%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 325 40% 88%;
+    --input: 330 60% 98%;
+    --ring: 329 78% 65%;
+    --radius: 1rem;
+    
+    /* 可愛いピンク系カラー */
+    --success: 140 70% 50%;
+    --success-foreground: 340 15% 25%;
+    --warning: 45 90% 60%;
+    --warning-foreground: 26 83% 14%;
+    --info: 200 80% 55%;
+    --info-foreground: 340 15% 25%;
+    
+    /* ピンクグラデーション要素 */
+    --gradient-from: 329 78% 65%;
+    --gradient-to: 310 65% 70%;
+    --surface: 330 60% 98%;
+    --surface-variant: 326 60% 96%;
+    --outline: 325 40% 82%;
+    --overlay: 0 0% 0% / 0.5;
+    --elevated: 330 60% 99%;
+    --elevated-border: 325 40% 85%;
+    
+    /* 可愛いアクセントカラー */
+    --cute-pink: 329 78% 65%;
+    --cute-lavender: 280 60% 75%;
+    --cute-peach: 15 80% 75%;
+    --cute-mint: 140 40% 75%;
   }
-  a:hover {
-    color: #747bff;
+
+  .dark {
+    --background: 330 25% 8%;
+    --foreground: 329 15% 90%;
+    --card: 330 25% 12%;
+    --card-foreground: 329 15% 90%;
+    --popover: 330 25% 10%;
+    --popover-foreground: 329 15% 90%;
+    --primary: 329 78% 65%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 330 20% 18%;
+    --secondary-foreground: 329 15% 90%;
+    --muted: 330 20% 16%;
+    --muted-foreground: 329 8% 65%;
+    --accent: 330 20% 16%;
+    --accent-foreground: 329 15% 90%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 330 20% 22%;
+    --input: 330 25% 14%;
+    --ring: 329 78% 65%;
+    
+    /* ダークモード可愛いピンク系カラー */
+    --success: 140 70% 50%;
+    --success-foreground: 0 0% 100%;
+    --warning: 45 90% 60%;
+    --warning-foreground: 26 83% 14%;
+    --info: 200 80% 55%;
+    --info-foreground: 0 0% 100%;
+    
+    /* ダークモードピンクグラデーション要素 */
+    --gradient-from: 329 78% 65%;
+    --gradient-to: 310 65% 70%;
+    --surface: 330 25% 14%;
+    --surface-variant: 330 20% 18%;
+    --outline: 330 20% 25%;
+    --overlay: 0 0% 0% / 0.7;
+    --elevated: 330 25% 12%;
+    --elevated-border: 330 20% 25%;
+    
+    /* 可愛いアクセントカラー */
+    --cute-pink: 329 78% 65%;
+    --cute-lavender: 280 60% 75%;
+    --cute-peach: 15 80% 75%;
+    --cute-mint: 140 40% 75%;
   }
-  button {
-    background-color: #f9f9f9;
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+    min-height: 100vh;
+  }
+  
+  /* レイアウト修正 */
+  .grid {
+    display: grid;
+  }
+  
+  .flex {
+    display: flex;
+  }
+  
+}
+
+/* アプリケーション固有のスタイル */
+
+/* プログレスバーのアニメーション */
+@keyframes progress {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(0%); }
+}
+
+/* グリッドパターン背景 */
+.bg-grid-pattern {
+  background-image: 
+    linear-gradient(to right, hsl(var(--border)) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(var(--border)) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* グラスモーフィズム効果 */
+.glassmorphism {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
+}
+
+.dark .glassmorphism {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* 強いグラスエフェクト */
+.glassmorphism-strong {
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 12px 40px rgba(31, 38, 135, 0.15);
+}
+
+.dark .glassmorphism-strong {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+
+
+/* サイドバー固有スタイル */
+.sidebar-solid {
+  background-color: hsl(330, 60%, 99%) !important;
+  backdrop-filter: none !important;
+  background-image: none !important;
+}
+
+.dark .sidebar-solid {
+  background-color: hsl(330, 25%, 12%) !important;
+}
+
+/* ダークモード対応 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
   }
 }

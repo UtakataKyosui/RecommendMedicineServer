@@ -1,86 +1,15 @@
-// Zustand Store - 状態管理
+// Jotai Store - 状態管理
 
-import { create } from 'zustand'
-import { immer } from 'zustand/middleware/immer'
-import { persist } from 'zustand/middleware'
-import { User, Medicine, MedicationLog, DashboardData, NotificationSettings } from '@/types'
-
-// アプリケーション全体の状態
-interface AppState {
-  // ユーザー関連
-  user: User | null
-  isAuthenticated: boolean
-  
-  // データ
-  medicines: Medicine[]
-  logs: MedicationLog[]
-  dashboardData: DashboardData | null
-  
-  // UI状態
-  isLoading: boolean
-  error: string | null
-  
-  // 設定
-  notificationSettings: NotificationSettings
-  theme: 'light' | 'dark' | 'system'
-  
-  // モーダル・ダイアログ状態
-  modals: {
-    addMedicine: boolean
-    editMedicine: Medicine | null
-    medicationLog: MedicationLog | null
-    settings: boolean
-  }
-}
-
-interface AppActions {
-  // ユーザー関連アクション
-  setUser: (user: User | null) => void
-  login: (user: User, token: string) => void
-  logout: () => void
-  
-  // 薬関連アクション
-  setMedicines: (medicines: Medicine[]) => void
-  addMedicine: (medicine: Medicine) => void
-  updateMedicine: (id: number, updates: Partial<Medicine>) => void
-  deleteMedicine: (id: number) => void
-  
-  // 服薬記録関連アクション
-  setLogs: (logs: MedicationLog[]) => void
-  addLog: (log: MedicationLog) => void
-  updateLog: (id: number, updates: Partial<MedicationLog>) => void
-  deleteLog: (id: number) => void
-  
-  // ダッシュボード関連アクション
-  setDashboardData: (data: DashboardData) => void
-  
-  // UI状態アクション
-  setLoading: (loading: boolean) => void
-  setError: (error: string | null) => void
-  clearError: () => void
-  
-  // 設定関連アクション
-  updateNotificationSettings: (settings: Partial<NotificationSettings>) => void
-  setTheme: (theme: 'light' | 'dark' | 'system') => void
-  
-  // モーダル・ダイアログアクション
-  openAddMedicineModal: () => void
-  closeAddMedicineModal: () => void
-  openEditMedicineModal: (medicine: Medicine) => void
-  closeEditMedicineModal: () => void
-  openMedicationLogModal: (log: MedicationLog) => void
-  closeMedicationLogModal: () => void
-  openSettingsModal: () => void
-  closeSettingsModal: () => void
-  
-  // ヘルパーアクション
-  getMedicineById: (id: number) => Medicine | undefined
-  getLogsByMedicineId: (medicineId: number) => MedicationLog[]
-  getTodayLogs: () => MedicationLog[]
-  getPendingLogs: () => MedicationLog[]
-}
-
-type AppStore = AppState & AppActions
+import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { atomWithStorage } from 'jotai/utils'
+import type { 
+  User, 
+  Medicine, 
+  MedicationLog, 
+  DashboardData, 
+  NotificationSettings, 
+  MedicationStatus 
+} from '@/types'
 
 // デフォルト設定
 const defaultNotificationSettings: NotificationSettings = {
@@ -91,287 +20,370 @@ const defaultNotificationSettings: NotificationSettings = {
   weeklyReportDay: 0, // Sunday
 }
 
-// メインストア
-export const useAppStore = create<AppStore>()(
-  persist(
-    immer((set, get) => ({
-      // 初期状態
-      user: null,
-      isAuthenticated: false,
-      medicines: [],
-      logs: [],
-      dashboardData: null,
-      isLoading: false,
-      error: null,
-      notificationSettings: defaultNotificationSettings,
-      theme: 'system',
-      modals: {
-        addMedicine: false,
-        editMedicine: null,
-        medicationLog: null,
-        settings: false,
-      },
+// 基本状態のatoms
+export const userAtom = atomWithStorage<User | null>('user', null)
 
-      // ユーザー関連アクション
-      setUser: (user) =>
-        set((state) => {
-          state.user = user
-          state.isAuthenticated = !!user
-        }),
+export const isAuthenticatedAtom = atomWithStorage<boolean>('isAuthenticated', false)
 
-      login: (user, token) =>
-        set((state) => {
-          state.user = user
-          state.isAuthenticated = true
-          localStorage.setItem('auth_token', token)
-        }),
+export const medicinesAtom = atom<Medicine[]>([])
 
-      logout: () =>
-        set((state) => {
-          state.user = null
-          state.isAuthenticated = false
-          state.medicines = []
-          state.logs = []
-          state.dashboardData = null
-          localStorage.removeItem('auth_token')
-        }),
+export const logsAtom = atom<MedicationLog[]>([])
 
-      // 薬関連アクション
-      setMedicines: (medicines) =>
-        set((state) => {
-          state.medicines = medicines
-        }),
+export const dashboardDataAtom = atom<DashboardData | null>(null)
+export const isLoadingAtom = atom<boolean>(false)
+export const errorAtom = atom<string | null>(null)
+export const notificationSettingsAtom = atomWithStorage<NotificationSettings>('notificationSettings', defaultNotificationSettings)
+export const themeAtom = atomWithStorage<'light' | 'dark' | 'system'>('theme', 'system')
 
-      addMedicine: (medicine) =>
-        set((state) => {
-          state.medicines.push(medicine)
-        }),
+// モーダル状態のatoms
+export const addMedicineModalAtom = atom<boolean>(false)
+export const editMedicineModalAtom = atom<Medicine | null>(null)
+export const medicationLogModalAtom = atom<MedicationLog | null>(null)
+export const settingsModalAtom = atom<boolean>(false)
 
-      updateMedicine: (id, updates) =>
-        set((state) => {
-          const index = state.medicines.findIndex((m) => m.id === id)
-          if (index !== -1) {
-            Object.assign(state.medicines[index], updates)
-          }
-        }),
+// ヘルパー関数 - 日付関連のキャッシュ
+const getTodayString = () => {
+  return new Date().toISOString().split('T')[0]
+}
 
-      deleteMedicine: (id) =>
-        set((state) => {
-          state.medicines = state.medicines.filter((m) => m.id !== id)
-          state.logs = state.logs.filter((l) => l.medicineId !== id)
-        }),
+let cachedToday = ''
+let cachedTodayTime = 0
+const getCachedToday = () => {
+  const now = Date.now()
+  if (now - cachedTodayTime > 60000) { // 1分でキャッシュ更新
+    cachedToday = getTodayString()
+    cachedTodayTime = now
+  }
+  return cachedToday
+}
 
-      // 服薬記録関連アクション
-      setLogs: (logs) =>
-        set((state) => {
-          state.logs = logs
-        }),
+// 計算されたatoms（derived atoms）
+export const activeMedicinesAtom = atom((get) => {
+  const medicines = get(medicinesAtom)
+  return medicines.filter((m) => m.active)
+})
 
-      addLog: (log) =>
-        set((state) => {
-          state.logs.push(log)
-        }),
+export const todayStatsAtom = atom((get) => {
+  const logs = get(logsAtom)
+  const today = getCachedToday()
+  const todayLogs = logs.filter((l) => l.scheduledTime.startsWith(today))
 
-      updateLog: (id, updates) =>
-        set((state) => {
-          const index = state.logs.findIndex((l) => l.id === id)
-          if (index !== -1) {
-            Object.assign(state.logs[index], updates)
-          }
-        }),
+  const total = todayLogs.length
+  const completed = todayLogs.filter((l) => l.status === 'completed').length
+  const pending = todayLogs.filter((l) => l.status === 'pending').length
+  const missed = todayLogs.filter((l) => l.status === 'missed').length
 
-      deleteLog: (id) =>
-        set((state) => {
-          state.logs = state.logs.filter((l) => l.id !== id)
-        }),
+  return {
+    total,
+    completed,
+    pending,
+    missed,
+    adherenceRate: total > 0 ? Math.round((completed / total) * 100) : 0,
+  }
+})
 
-      // ダッシュボード関連アクション
-      setDashboardData: (data) =>
-        set((state) => {
-          state.dashboardData = data
-        }),
-
-      // UI状態アクション
-      setLoading: (loading) =>
-        set((state) => {
-          state.isLoading = loading
-        }),
-
-      setError: (error) =>
-        set((state) => {
-          state.error = error
-        }),
-
-      clearError: () =>
-        set((state) => {
-          state.error = null
-        }),
-
-      // 設定関連アクション
-      updateNotificationSettings: (settings) =>
-        set((state) => {
-          Object.assign(state.notificationSettings, settings)
-        }),
-
-      setTheme: (theme) =>
-        set((state) => {
-          state.theme = theme
-        }),
-
-      // モーダル・ダイアログアクション
-      openAddMedicineModal: () =>
-        set((state) => {
-          state.modals.addMedicine = true
-        }),
-
-      closeAddMedicineModal: () =>
-        set((state) => {
-          state.modals.addMedicine = false
-        }),
-
-      openEditMedicineModal: (medicine) =>
-        set((state) => {
-          state.modals.editMedicine = medicine
-        }),
-
-      closeEditMedicineModal: () =>
-        set((state) => {
-          state.modals.editMedicine = null
-        }),
-
-      openMedicationLogModal: (log) =>
-        set((state) => {
-          state.modals.medicationLog = log
-        }),
-
-      closeMedicationLogModal: () =>
-        set((state) => {
-          state.modals.medicationLog = null
-        }),
-
-      openSettingsModal: () =>
-        set((state) => {
-          state.modals.settings = true
-        }),
-
-      closeSettingsModal: () =>
-        set((state) => {
-          state.modals.settings = false
-        }),
-
-      // ヘルパーアクション
-      getMedicineById: (id) => {
-        const state = get()
-        return state.medicines.find((m) => m.id === id)
-      },
-
-      getLogsByMedicineId: (medicineId) => {
-        const state = get()
-        return state.logs.filter((l) => l.medicineId === medicineId)
-      },
-
-      getTodayLogs: () => {
-        const state = get()
-        const today = new Date().toISOString().split('T')[0]
-        return state.logs.filter((l) => l.scheduledTime.startsWith(today))
-      },
-
-      getPendingLogs: () => {
-        const state = get()
-        return state.logs.filter((l) => l.status === 'pending')
-      },
-    })),
-    {
-      name: 'medication-reminder-store',
-      partialize: (state) => ({
-        user: state.user,
-        isAuthenticated: state.isAuthenticated,
-        notificationSettings: state.notificationSettings,
-        theme: state.theme,
-      }),
-    }
+export const pendingMedicationsAtom = atom((get) => {
+  const logs = get(logsAtom)
+  const today = getCachedToday()
+  const nowTime = Date.now()
+  
+  return logs.filter((l) => 
+    l.status === 'pending' && 
+    l.scheduledTime.startsWith(today) &&
+    new Date(l.scheduledTime).getTime() <= nowTime
   )
+})
+
+export const todayLogsAtom = atom((get) => {
+  const logs = get(logsAtom)
+  const today = getCachedToday()
+  return logs.filter((l) => l.scheduledTime.startsWith(today))
+})
+
+export const pendingLogsAtom = atom((get) => {
+  const logs = get(logsAtom)
+  return logs.filter((l) => l.status === 'pending')
+})
+
+// アクション用のatoms（write-only atoms）
+export const loginAtom = atom(
+  null,
+  (_get, set, { user, token }: { user: User; token: string }) => {
+    set(userAtom, user)
+    set(isAuthenticatedAtom, true)
+    localStorage.setItem('auth_token', token)
+    
+    // ログイン時にサンプルデータを設定
+    const sampleMedicines = [
+      {
+        id: 1,
+        name: 'ビタミンD',
+        description: '骨の健康をサポート',
+        dosage: '1',
+        unit: '錠',
+        userId: user.id,
+        active: true,
+        schedules: [
+          {
+            id: 1,
+            medicineId: 1,
+            scheduledTime: '08:00',
+            frequency: 'daily' as const,
+            active: true,
+            daysOfWeek: '1,2,3,4,5,6,0',
+            createdAt: '2024-01-01T00:00:00.000Z',
+            updatedAt: '2024-01-01T00:00:00.000Z'
+          }
+        ],
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z'
+      },
+      {
+        id: 2,
+        name: '血圧の薬',
+        description: '高血圧治療薬',
+        dosage: '0.5',
+        unit: '錠',
+        userId: user.id,
+        active: true,
+        schedules: [
+          {
+            id: 2,
+            medicineId: 2,
+            scheduledTime: '07:30',
+            frequency: 'daily' as const,
+            active: true,
+            daysOfWeek: '1,2,3,4,5,6,0',
+            createdAt: '2024-01-01T00:00:00.000Z',
+            updatedAt: '2024-01-01T00:00:00.000Z'
+          },
+          {
+            id: 3,
+            medicineId: 2,
+            scheduledTime: '19:30',
+            frequency: 'daily' as const,
+            active: true,
+            daysOfWeek: '1,2,3,4,5,6,0',
+            createdAt: '2024-01-01T00:00:00.000Z',
+            updatedAt: '2024-01-01T00:00:00.000Z'
+          }
+        ],
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z'
+      }
+    ]
+    
+    // 今日の日付でサンプルログを生成
+    const today = new Date().toISOString().split('T')[0]
+    const sampleLogs = [
+      {
+        id: 1,
+        medicineId: 1,
+        scheduledTime: `${today}T08:00:00.000Z`,
+        takenTime: `${today}T08:05:00.000Z`,
+        status: 'completed' as const,
+        notes: '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      },
+      {
+        id: 2,
+        medicineId: 2,
+        scheduledTime: `${today}T07:30:00.000Z`,
+        takenTime: `${today}T07:35:00.000Z`,
+        status: 'completed' as const,
+        notes: '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      },
+      {
+        id: 3,
+        medicineId: 2,
+        scheduledTime: `${today}T19:30:00.000Z`,
+        status: 'pending' as const,
+        notes: '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+    ]
+    
+    set(medicinesAtom, sampleMedicines)
+    set(logsAtom, sampleLogs)
+  }
 )
 
-// 個別のセレクター（パフォーマンス最適化用）
-export const useUser = () => useAppStore((state) => state.user)
-export const useIsAuthenticated = () => useAppStore((state) => state.isAuthenticated)
-export const useMedicines = () => useAppStore((state) => state.medicines)
-export const useLogs = () => useAppStore((state) => state.logs)
-export const useDashboardData = () => useAppStore((state) => state.dashboardData)
-export const useIsLoading = () => useAppStore((state) => state.isLoading)
-export const useError = () => useAppStore((state) => state.error)
-export const useNotificationSettings = () => useAppStore((state) => state.notificationSettings)
-export const useTheme = () => useAppStore((state) => state.theme)
-export const useModals = () => useAppStore((state) => state.modals)
+export const logoutAtom = atom(
+  null,
+  (_get, set) => {
+    set(userAtom, null)
+    set(isAuthenticatedAtom, false)
+    set(medicinesAtom, [])
+    set(logsAtom, [])
+    set(dashboardDataAtom, null)
+    localStorage.removeItem('auth_token')
+  }
+)
 
-// アクションのみのセレクター
-export const useAppActions = () =>
-  useAppStore((state) => ({
-    setUser: state.setUser,
-    login: state.login,
-    logout: state.logout,
-    setMedicines: state.setMedicines,
-    addMedicine: state.addMedicine,
-    updateMedicine: state.updateMedicine,
-    deleteMedicine: state.deleteMedicine,
-    setLogs: state.setLogs,
-    addLog: state.addLog,
-    updateLog: state.updateLog,
-    deleteLog: state.deleteLog,
-    setDashboardData: state.setDashboardData,
-    setLoading: state.setLoading,
-    setError: state.setError,
-    clearError: state.clearError,
-    updateNotificationSettings: state.updateNotificationSettings,
-    setTheme: state.setTheme,
-    openAddMedicineModal: state.openAddMedicineModal,
-    closeAddMedicineModal: state.closeAddMedicineModal,
-    openEditMedicineModal: state.openEditMedicineModal,
-    closeEditMedicineModal: state.closeEditMedicineModal,
-    openMedicationLogModal: state.openMedicationLogModal,
-    closeMedicationLogModal: state.closeMedicationLogModal,
-    openSettingsModal: state.openSettingsModal,
-    closeSettingsModal: state.closeSettingsModal,
-    getMedicineById: state.getMedicineById,
-    getLogsByMedicineId: state.getLogsByMedicineId,
-    getTodayLogs: state.getTodayLogs,
-    getPendingLogs: state.getPendingLogs,
-  }))
+export const addMedicineAtom = atom(
+  null,
+  (get, set, medicine: Medicine) => {
+    const medicines = get(medicinesAtom)
+    set(medicinesAtom, [...medicines, medicine])
+  }
+)
 
-// 特化したセレクター
-export const useTodayStats = () =>
-  useAppStore((state) => {
-    const todayLogs = state.logs.filter((l) => {
-      const today = new Date().toISOString().split('T')[0]
-      return l.scheduledTime.startsWith(today)
-    })
-
-    const total = todayLogs.length
-    const completed = todayLogs.filter((l) => l.status === 'completed').length
-    const pending = todayLogs.filter((l) => l.status === 'pending').length
-    const missed = todayLogs.filter((l) => l.status === 'missed').length
-
-    return {
-      total,
-      completed,
-      pending,
-      missed,
-      adherenceRate: total > 0 ? Math.round((completed / total) * 100) : 0,
+export const updateMedicineAtom = atom(
+  null,
+  (get, set, { id, updates }: { id: number; updates: Partial<Medicine> }) => {
+    const medicines = get(medicinesAtom)
+    const index = medicines.findIndex((m) => m.id === id)
+    if (index !== -1) {
+      const updatedMedicines = [...medicines]
+      updatedMedicines[index] = { ...updatedMedicines[index], ...updates }
+      set(medicinesAtom, updatedMedicines)
     }
-  })
+  }
+)
 
-export const useActiveMedicines = () =>
-  useAppStore((state) => state.medicines.filter((m) => m.active))
+export const deleteMedicineAtom = atom(
+  null,
+  (get, set, id: number) => {
+    const medicines = get(medicinesAtom)
+    const logs = get(logsAtom)
+    set(medicinesAtom, medicines.filter((m) => m.id !== id))
+    set(logsAtom, logs.filter((l) => l.medicineId !== id))
+  }
+)
 
-export const usePendingMedications = () =>
-  useAppStore((state) => {
-    const now = new Date()
-    const today = now.toISOString().split('T')[0]
-    
-    return state.logs.filter((l) => 
-      l.status === 'pending' && 
-      l.scheduledTime.startsWith(today) &&
-      new Date(l.scheduledTime) <= now
-    )
-  })
+export const addLogAtom = atom(
+  null,
+  (get, set, log: MedicationLog) => {
+    const logs = get(logsAtom)
+    set(logsAtom, [...logs, log])
+  }
+)
+
+export const updateLogAtom = atom(
+  null,
+  (get, set, { id, updates }: { id: number; updates: Partial<MedicationLog> }) => {
+    const logs = get(logsAtom)
+    const index = logs.findIndex((l) => l.id === id)
+    if (index !== -1) {
+      const updatedLogs = [...logs]
+      updatedLogs[index] = { ...updatedLogs[index], ...updates }
+      set(logsAtom, updatedLogs)
+    }
+  }
+)
+
+export const deleteLogAtom = atom(
+  null,
+  (get, set, id: number) => {
+    const logs = get(logsAtom)
+    set(logsAtom, logs.filter((l) => l.id !== id))
+  }
+)
+
+// ヘルパー関数のatoms
+export const getMedicineByIdAtom = atom(
+  null,
+  (get, _set, id: number) => {
+    const medicines = get(medicinesAtom)
+    return medicines.find((m) => m.id === id)
+  }
+)
+
+export const getLogsByMedicineIdAtom = atom(
+  null,
+  (get, _set, medicineId: number) => {
+    const logs = get(logsAtom)
+    return logs.filter((l) => l.medicineId === medicineId)
+  }
+)
+
+// 便利なフック
+export const useUser = () => useAtomValue(userAtom)
+export const useIsAuthenticated = () => useAtomValue(isAuthenticatedAtom)
+export const useMedicines = () => useAtomValue(medicinesAtom)
+export const useLogs = () => useAtomValue(logsAtom)
+export const useDashboardData = () => useAtomValue(dashboardDataAtom)
+export const useIsLoading = () => useAtomValue(isLoadingAtom)
+export const useError = () => useAtomValue(errorAtom)
+export const useNotificationSettings = () => useAtomValue(notificationSettingsAtom)
+export const useTheme = () => useAtomValue(themeAtom)
+
+export const useActiveMedicines = () => useAtomValue(activeMedicinesAtom)
+export const useTodayStats = () => useAtomValue(todayStatsAtom)
+export const usePendingMedications = () => useAtomValue(pendingMedicationsAtom)
+
+// モーダル状態用のフック
+export const useModals = () => ({
+  addMedicine: useAtomValue(addMedicineModalAtom),
+  editMedicine: useAtomValue(editMedicineModalAtom),
+  medicationLog: useAtomValue(medicationLogModalAtom),
+  settings: useAtomValue(settingsModalAtom),
+})
+
+// アクション用のフック
+export const useAppActions = () => {
+  const setUser = useSetAtom(userAtom)
+  const [, login] = useAtom(loginAtom)
+  const [, logout] = useAtom(logoutAtom)
+  const setMedicines = useSetAtom(medicinesAtom)
+  const [, addMedicine] = useAtom(addMedicineAtom)
+  const [, updateMedicine] = useAtom(updateMedicineAtom)
+  const [, deleteMedicine] = useAtom(deleteMedicineAtom)
+  const setLogs = useSetAtom(logsAtom)
+  const [, addLog] = useAtom(addLogAtom)
+  const [, updateLog] = useAtom(updateLogAtom)
+  const [, deleteLog] = useAtom(deleteLogAtom)
+  const setDashboardData = useSetAtom(dashboardDataAtom)
+  const setLoading = useSetAtom(isLoadingAtom)
+  const setError = useSetAtom(errorAtom)
+  const updateNotificationSettings = useSetAtom(notificationSettingsAtom)
+  const setTheme = useSetAtom(themeAtom)
+  
+  // モーダル操作
+  const setAddMedicineModal = useSetAtom(addMedicineModalAtom)
+  const setEditMedicineModal = useSetAtom(editMedicineModalAtom)
+  const setMedicationLogModal = useSetAtom(medicationLogModalAtom)
+  const setSettingsModal = useSetAtom(settingsModalAtom)
+  
+  // ヘルパー関数
+  const [, getMedicineById] = useAtom(getMedicineByIdAtom)
+  const [, getLogsByMedicineId] = useAtom(getLogsByMedicineIdAtom)
+  const getTodayLogs = useAtomValue(todayLogsAtom)
+  const getPendingLogs = useAtomValue(pendingLogsAtom)
+
+  return {
+    setUser,
+    login,
+    logout,
+    setMedicines,
+    addMedicine,
+    updateMedicine,
+    deleteMedicine,
+    setLogs,
+    addLog,
+    updateLog,
+    deleteLog,
+    setDashboardData,
+    setLoading,
+    setError,
+    clearError: () => setError(null),
+    updateNotificationSettings,
+    setTheme,
+    openAddMedicineModal: () => setAddMedicineModal(true),
+    closeAddMedicineModal: () => setAddMedicineModal(false),
+    openEditMedicineModal: (medicine: Medicine) => setEditMedicineModal(medicine),
+    closeEditMedicineModal: () => setEditMedicineModal(null),
+    openMedicationLogModal: (log: MedicationLog) => setMedicationLogModal(log),
+    closeMedicationLogModal: () => setMedicationLogModal(null),
+    openSettingsModal: () => setSettingsModal(true),
+    closeSettingsModal: () => setSettingsModal(false),
+    getMedicineById,
+    getLogsByMedicineId,
+    getTodayLogs,
+    getPendingLogs,
+  }
+}

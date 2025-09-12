@@ -47,12 +47,13 @@ impl Hooks for App {
 
     fn routes(_ctx: &AppContext) -> AppRoutes {
         AppRoutes::with_default_routes()
-			.add_route(
-				controllers::auth::routes()
-			)
-			.add_route(controllers::medicine::routes())
-
-            // Add more as needed
+            .add_route(controllers::auth::routes())
+            .add_route(controllers::medicine::routes())
+            .add_route(controllers::medication_schedule::routes())
+            .add_route(controllers::medication_log::routes())
+            .add_route(controllers::reports::routes())
+            .add_route(controllers::dashboard::routes())
+            .add_route(controllers::push_notifications::routes())
     }
     async fn connect_workers(ctx: &AppContext, queue: &Queue) -> Result<()> {
         // Register workers using the new pattern
@@ -115,38 +116,39 @@ impl Hooks for App {
 impl App {
     /// 即座に通知を送信
     pub async fn send_immediate_notification(
-        _ctx: &AppContext,
-        line_user_id: String,
+        ctx: &AppContext,
+        user_id: i32,
         message: String,
         notification_type: String,
+        medicine_id: Option<i32>,
+        title: Option<String>,
     ) -> Result<()> {
-        // Fixed: Use the correct queue enqueue pattern for Loco 0.15
-        use crate::workers::notification_worker::NotificationWorkerArgs;
+        use crate::workers::notification_worker::{NotificationWorker, NotificationWorkerArgs};
         
-        let _args = NotificationWorkerArgs {
-            line_user_id,
+        let args = NotificationWorkerArgs {
+            user_id,
             message,
             notification_type,
-            medicine_id: None,
+            medicine_id,
             log_id: None,
+            title,
         };
 
-        // TODO: Fix queue access pattern for Loco 0.15
-        // The queue access needs to be implemented properly
-        // queue.enqueue(NotificationWorker::build(ctx), &args, None).await?;
+        // TODO: Fix queue access for Loco 0.15 - queue functionality disabled temporarily
+        tracing::info!("Notification queuing requested for user {} but queue is disabled temporarily", user_id);
+        
         Ok(())
     }
 
     /// レポート生成を開始
     pub async fn generate_report(
-        _ctx: &AppContext,
+        ctx: &AppContext,
         user_id: i32,
         report_type: String,
     ) -> Result<()> {
-        // Fixed: Use the correct queue enqueue pattern for Loco 0.15
-        use crate::workers::report_generator::ReportGeneratorArgs;
+        use crate::workers::report_generator::{ReportGeneratorWorker, ReportGeneratorArgs};
 
-        let _args = ReportGeneratorArgs {
+        let args = ReportGeneratorArgs {
             user_id,
             report_type,
             start_date: None,
@@ -154,9 +156,9 @@ impl App {
             send_notification: true,
         };
 
-        // TODO: Fix queue access pattern for Loco 0.15
-        // The queue access needs to be implemented properly
-        // queue.enqueue(ReportGeneratorWorker::build(ctx), &args, None).await?;
+        // TODO: Fix queue access for Loco 0.15 - queue functionality disabled temporarily
+        tracing::info!("Report generation queuing requested for user {} but queue is disabled temporarily", user_id);
+        
         Ok(())
     }
 }

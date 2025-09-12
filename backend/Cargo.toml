@@ -38,6 +38,10 @@ include_dir = { version = "0.7" }
 axum-extra = { version = "0.10", features = ["form"] }
 reqwest = "0.12.19"
 fastrand = "2.3.0"
+hmac = "0.12"
+sha2 = "0.10"
+base64 = "0.22"
+web-push = "0.10"
 
 [[bin]]
 name = "backend-cli"

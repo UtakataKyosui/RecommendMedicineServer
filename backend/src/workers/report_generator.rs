@@ -352,26 +352,25 @@ impl ReportGeneratorWorker {
         user: &User,
         report: &MedicationReport,
     ) -> Result<()> {
-        let line_user_id = user.line_user_id
-            .as_ref()
-            .ok_or_else(|| loco_rs::Error::string("User has no LINE ID"))?;
+        // Web Push通知システムを使用（LINE ID不要）
 
         // レポートサマリーメッセージを作成
         let message = self.create_report_summary_message(report);
 
         // 通知ワーカーをエンキュー
         let _notification_args = NotificationWorkerArgs {
-            line_user_id: line_user_id.clone(),
+            user_id: user.id,
             message,
             notification_type: "medication_report".to_string(),
             medicine_id: None,
             log_id: None,
+            title: Some("📊 服薬レポート".to_string()),
         };
 
         // TODO: Queue::queue の実装を修正する必要があります
         // Queue::queue(&self.ctx.queue, NotificationWorker, &notification_args).await?;
 
-        tracing::info!("Queued report notification for user {}", line_user_id);
+        tracing::info!("Queued Web Push report notification for user {}", user.id);
         Ok(())
     }
 

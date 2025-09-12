@@ -114,10 +114,7 @@ impl MedicationReminderTask {
             .await?
             .ok_or_else(|| Error::string("User not found"))?;
 
-        // LINE User IDが設定されているかチェック
-        let line_user_id = user.line_user_id
-            .as_ref()
-            .ok_or_else(|| Error::string("User has no LINE ID"))?;
+        // Web Push通知システムを使用（LINE ID不要）
 
         // 今日の同じ時刻の服薬ログがあるかチェック
         let today_start = current_time.date().and_hms_opt(0, 0, 0).unwrap();
@@ -158,11 +155,12 @@ impl MedicationReminderTask {
 
         // 通知ワーカーをエンキュー
         let _notification_args = NotificationWorkerArgs {
-            line_user_id: line_user_id.clone(),
+            user_id: user.id,
             message,
             notification_type: "medication_reminder".to_string(),
             medicine_id: Some(medicine.id),
             log_id: None,
+            title: Some("🔔 服薬時間です".to_string()),
         };
 
         // TODO: Fix queue access pattern for Loco 0.15
@@ -175,7 +173,7 @@ impl MedicationReminderTask {
         //     ).await?;
         // }
 
-        tracing::info!("Queued reminder for user {} - medicine: {}", line_user_id, medicine.name);
+        tracing::info!("Queued reminder for user {} - medicine: {}", user.id, medicine.name);
         Ok(())
     }
 
@@ -225,9 +223,7 @@ impl MedicationReminderTask {
             .await?
             .ok_or_else(|| Error::string("User not found"))?;
 
-        let line_user_id = user.line_user_id
-            .as_ref()
-            .ok_or_else(|| Error::string("User has no LINE ID"))?;
+        // Web Push通知システムを使用（LINE ID不要）
 
         // 未服薬通知メッセージを作成
         let message = format!(
@@ -243,11 +239,12 @@ impl MedicationReminderTask {
 
         // 通知ワーカーをエンキュー
         let _notification_args = NotificationWorkerArgs {
-            line_user_id: line_user_id.clone(),
+            user_id: user.id,
             message,
             notification_type: "missed_medication".to_string(),
             medicine_id: Some(medicine.id),
             log_id: Some(log.id),
+            title: Some("⚠️ 服薬忘れ".to_string()),
         };
 
         // TODO: Fix queue access pattern for Loco 0.15
@@ -260,7 +257,7 @@ impl MedicationReminderTask {
         //     ).await?;
         // }
 
-        tracing::info!("Queued missed medication reminder for user {} - medicine: {}", line_user_id, medicine.name);
+        tracing::info!("Queued missed medication reminder for user {} - medicine: {}", user.id, medicine.name);
         Ok(())
     }
 

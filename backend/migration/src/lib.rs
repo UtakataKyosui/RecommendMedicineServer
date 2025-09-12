@@ -9,6 +9,8 @@ mod m20250608_062748_medicines;
 mod m20250608_062839_medication_schedules;
 mod m20250608_062931_medication_logs;
 mod m20250608_063023_add_foreign_keys;
+mod m20250609_100000_push_subscriptions;
+mod m20250609_110000_remove_line_fields;
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -22,6 +24,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20250608_062839_medication_schedules::Migration),
             Box::new(m20250608_062931_medication_logs::Migration),
             Box::new(m20250608_063023_add_foreign_keys::Migration),
+            Box::new(m20250609_100000_push_subscriptions::Migration),
+            Box::new(m20250609_110000_remove_line_fields::Migration),
             // inject-above (do not remove this comment)
         ]
     }

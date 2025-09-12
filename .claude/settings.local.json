@@ -14,7 +14,16 @@
       "mcp__ide__getDiagnostics",
       "Bash(npm install:*)",
       "Bash(npm uninstall:*)",
-      "Bash(npx:*)"
+      "Bash(npx:*)",
+      "Bash(ls:*)",
+      "Bash(git submodule:*)",
+      "Bash(git config:*)",
+      "Bash(ldd:*)",
+      "Bash(sudo apt:*)",
+      "Bash(sudo apt install:*)",
+      "Bash(sudo rm:*)",
+      "Bash(./target/debug/backend-cli:*)",
+      "Bash(/tmp/target/debug/backend-cli --help)"
     ],
     "deny": []
   }

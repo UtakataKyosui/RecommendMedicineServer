@@ -1,14 +1,20 @@
 use loco_rs::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use sea_orm::{EntityTrait, ColumnTrait, QueryFilter};
+
+use crate::models::_entities::users;
+// use crate::models::_entities::push_subscriptions; // Will be available after migration
+use crate::controllers::push_notifications::{PushNotificationRequest, send_push_to_user};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct NotificationWorkerArgs {
-    pub line_user_id: String,
+    pub user_id: i32,
     pub message: String,
     pub notification_type: String, // "medication_reminder", "missed_medication", "general"
     pub medicine_id: Option<i32>,
     pub log_id: Option<i32>,
+    pub title: Option<String>,
 }
 
 pub struct NotificationWorker {
@@ -23,25 +29,35 @@ impl BackgroundWorker<NotificationWorkerArgs> for NotificationWorker {
     
     async fn perform(&self, args: NotificationWorkerArgs) -> Result<()> {
         tracing::info!(
-            "📱 Sending {} notification to LINE user: {}",
+            "📱 Sending {} notification to user: {}",
             args.notification_type,
-            args.line_user_id
+            args.user_id
         );
 
-        // LINE Bot APIを通じて通知を送信
-        match self.send_line_notification(&args).await {
-            Ok(_) => {
-                tracing::info!("✅ LINE notification sent successfully to {}", args.line_user_id);
-                
-                // 通知履歴をデータベースに記録
-                if let Err(e) = self.log_notification(&args).await {
-                    tracing::error!("Failed to log notification: {}", e);
+        let user = users::Entity::find_by_id(args.user_id)
+            .one(&self.ctx.db)
+            .await?
+            .ok_or_else(|| Error::string("User not found"))?;
+
+        // Web Push通知のみを送信
+        match self.send_web_push_notification(&args).await {
+            Ok(sent_count) => {
+                if sent_count > 0 {
+                    tracing::info!("✅ Web Push notification sent successfully to {} subscriptions", sent_count);
+                } else {
+                    tracing::warn!("📱 No active Web Push subscriptions found for user {}", args.user_id);
+                    return Err(Error::string("No active notification subscriptions found"));
                 }
             }
             Err(e) => {
-                tracing::error!("❌ Failed to send LINE notification to {}: {}", args.line_user_id, e);
-                return Err(loco_rs::Error::string(&format!("LINE notification failed: {}", e)));
+                tracing::error!("❌ Failed to send Web Push notification to user {}: {}", args.user_id, e);
+                return Err(Error::string(&format!("Web Push notification failed: {}", e)));
             }
+        };
+
+        // 通知履歴をデータベースに記録
+        if let Err(e) = self.log_notification(&args).await {
+            tracing::error!("Failed to log notification: {}", e);
         }
 
         Ok(())
@@ -49,186 +65,55 @@ impl BackgroundWorker<NotificationWorkerArgs> for NotificationWorker {
 }
 
 impl NotificationWorker {
-    /// LINE Bot APIに通知を送信
-    async fn send_line_notification(&self, args: &NotificationWorkerArgs) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let channel_access_token = std::env::var("LINE_CHANNEL_ACCESS_TOKEN")
-            .map_err(|_| "LINE_CHANNEL_ACCESS_TOKEN environment variable not found")?;
-
-        if channel_access_token == "YOUR_LINE_CHANNEL_ACCESS_TOKEN" {
-            tracing::warn!("LINE_CHANNEL_ACCESS_TOKEN is not properly configured. Skipping notification.");
-            return Ok(());
-        }
-
-        let client = reqwest::Client::new();
-        
-        // メッセージタイプに応じてLINE Flexメッセージまたは通常テキストを使い分け
-        let message_payload = match args.notification_type.as_str() {
-            "medication_reminder" => self.create_medication_reminder_flex_message(args),
-            "missed_medication" => self.create_missed_medication_flex_message(args),
-            _ => json!({
-                "type": "text",
-                "text": args.message
-            })
-        };
-
-        let push_message = json!({
-            "to": args.line_user_id,
-            "messages": [message_payload]
+    /// Web Push通知を送信
+    async fn send_web_push_notification(&self, args: &NotificationWorkerArgs) -> Result<i32, Error> {
+        let title = args.title.as_deref().unwrap_or_else(|| {
+            match args.notification_type.as_str() {
+                "medication_reminder" => "🔔 服薬時間です",
+                "missed_medication" => "⚠️ 服薬を忘れていませんか？",
+                _ => "💊 服薬管理"
+            }
         });
 
-        let response = client
-            .post("https://api.line.me/v2/bot/message/push")
-            .header("Authorization", format!("Bearer {}", channel_access_token))
-            .header("Content-Type", "application/json")
-            .json(&push_message)
-            .send()
-            .await?;
+        let notification = PushNotificationRequest {
+            title: title.to_string(),
+            body: args.message.clone(),
+            icon: Some("/icons/icon-192x192.png".to_string()),
+            badge: Some("/icons/badge-72x72.png".to_string()),
+            tag: Some(format!("medication-{}", args.notification_type)),
+            data: Some(json!({
+                "notification_type": args.notification_type,
+                "medicine_id": args.medicine_id,
+                "log_id": args.log_id,
+                "user_id": args.user_id,
+                "url": "/dashboard"
+            })),
+            actions: Some(vec![
+                crate::controllers::push_notifications::NotificationAction {
+                    action: "complete".to_string(),
+                    title: "服薬完了".to_string(),
+                    icon: Some("/icons/check.png".to_string()),
+                },
+                crate::controllers::push_notifications::NotificationAction {
+                    action: "snooze".to_string(),
+                    title: "10分後".to_string(),
+                    icon: Some("/icons/snooze.png".to_string()),
+                },
+            ]),
+        };
 
-        if response.status().is_success() {
-            tracing::debug!("LINE API response: {}", response.status());
-            Ok(())
-        } else {
-            let status = response.status();
-            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-            tracing::error!("LINE API error: {} - {}", status, error_text);
-            Err(format!("LINE API error: {} - {}", status, error_text).into())
-        }
+        send_push_to_user(&self.ctx, args.user_id, &notification).await
     }
 
-    /// 服薬リマインダー用のFlexメッセージを作成
-    fn create_medication_reminder_flex_message(&self, args: &NotificationWorkerArgs) -> serde_json::Value {
-        json!({
-            "type": "flex",
-            "altText": "服薬リマインダー",
-            "contents": {
-                "type": "bubble",
-                "header": {
-                    "type": "box",
-                    "layout": "vertical",
-                    "contents": [
-                        {
-                            "type": "text",
-                            "text": "🔔 服薬時間です",
-                            "weight": "bold",
-                            "size": "lg",
-                            "color": "#2E86AB"
-                        }
-                    ],
-                    "backgroundColor": "#F3F7FA"
-                },
-                "body": {
-                    "type": "box",
-                    "layout": "vertical",
-                    "contents": [
-                        {
-                            "type": "text",
-                            "text": args.message,
-                            "wrap": true,
-                            "size": "md"
-                        }
-                    ]
-                },
-                "footer": {
-                    "type": "box",
-                    "layout": "vertical",
-                    "contents": [
-                        {
-                            "type": "button",
-                            "action": {
-                                "type": "message",
-                                "label": "服薬完了",
-                                "text": "服薬完了"
-                            },
-                            "style": "primary",
-                            "color": "#28a745"
-                        },
-                        {
-                            "type": "button",
-                            "action": {
-                                "type": "message",
-                                "label": "後で通知",
-                                "text": "後で通知"
-                            },
-                            "style": "secondary"
-                        }
-                    ],
-                    "spacing": "sm"
-                }
-            }
-        })
-    }
-
-    /// 未服薬警告用のFlexメッセージを作成
-    fn create_missed_medication_flex_message(&self, args: &NotificationWorkerArgs) -> serde_json::Value {
-        json!({
-            "type": "flex",
-            "altText": "服薬忘れ通知",
-            "contents": {
-                "type": "bubble",
-                "header": {
-                    "type": "box",
-                    "layout": "vertical",
-                    "contents": [
-                        {
-                            "type": "text",
-                            "text": "⚠️ 服薬忘れ",
-                            "weight": "bold",
-                            "size": "lg",
-                            "color": "#DC3545"
-                        }
-                    ],
-                    "backgroundColor": "#FDF2F2"
-                },
-                "body": {
-                    "type": "box",
-                    "layout": "vertical",
-                    "contents": [
-                        {
-                            "type": "text",
-                            "text": args.message,
-                            "wrap": true,
-                            "size": "md"
-                        }
-                    ]
-                },
-                "footer": {
-                    "type": "box",
-                    "layout": "vertical",
-                    "contents": [
-                        {
-                            "type": "button",
-                            "action": {
-                                "type": "message",
-                                "label": "今から飲む",
-                                "text": "服薬完了"
-                            },
-                            "style": "primary",
-                            "color": "#28a745"
-                        },
-                        {
-                            "type": "button",
-                            "action": {
-                                "type": "message",
-                                "label": "飲み忘れ記録",
-                                "text": "飲み忘れ"
-                            },
-                            "style": "secondary",
-                            "color": "#6c757d"
-                        }
-                    ],
-                    "spacing": "sm"
-                }
-            }
-        })
-    }
+    // LINE Bot機能は完全に削除されました
 
     /// 通知履歴をデータベースに記録
     async fn log_notification(&self, args: &NotificationWorkerArgs) -> Result<(), DbErr> {
         // 通知履歴テーブルがあれば記録
         // 今回は簡単のためログ出力のみ
         tracing::info!(
-            "Notification logged: user={}, type={}, medicine_id={:?}",
-            args.line_user_id,
+            "Notification logged: user_id={}, type={}, medicine_id={:?}",
+            args.user_id,
             args.notification_type,
             args.medicine_id
         );

@@ -1,0 +1,6 @@
+---
+source: tests/requests/auth.rs
+assertion_line: 103
+expression: login_response.text()
+---
+"{\"token\":\"TOKEN\",\"pid\":\"PID\",\"name\":\"loco\"}"
